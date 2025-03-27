@@ -9,13 +9,22 @@ import (
 	"time"
 
 	"github.com/dolmatovDan/cofffe_shop/handlers"
+	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
 )
 
 func main() {
 	l := log.New(os.Stdout, "products-api ", log.LstdFlags)
 
-	ph := handlers.NewProducts(l)
+	conn, err := grpc.Dial(":9092", grpc.WithInsecure())
+	if err != nil {
+		panic(err)
+	}
+	// gRPC client
+	cc := protos.NewCurrencyClient(conn)
+
+	ph := handlers.NewProducts(l, cc)
 
 	sm := mux.NewRouter()
 

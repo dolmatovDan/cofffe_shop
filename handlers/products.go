@@ -6,18 +6,20 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/dolmatovDan/cofffe_shop/data"
+	protos "github.com/dolmatovDan/gRPC/currency"
+	"github.com/gorilla/mux"
 )
 
 // http.Handler
 type Products struct {
 	l *log.Logger
+	cc protos.CurrencyClient
 }
 
 // NewProducts creates a products handler with the given logger
-func NewProducts(l *log.Logger) *Products {
-	return &Products{l}
+func NewProducts(l *log.Logger, cc protos.CurrencyClient) *Products {
+	return &Products{l, cc}
 }
 
 // return product from data
@@ -26,7 +28,24 @@ func (p *Products) GetProducts(rw http.ResponseWriter, r *http.Request) {
 
 	lp := data.GetProducts()
 
-	err := lp.ToJSON(rw)
+	// get exchange from gRPC client
+	rr := &protos.RateRequest{
+		Base: protos.Currencies(protos.Currencies_value["EUR"]),
+		Destination: protos.Currencies(protos.Currencies_value["GBP"]),
+	}
+	resp, err := p.cc.GetRate(context.Background(), rr)
+	if err != nil {
+		p.l.Println("[Error] error getting new rate", err)
+		http.Error(rw, "Error getting currency rate", http.StatusBadRequest)
+		return
+	}
+	p.l.Printf("Resp %#v", resp)
+	
+	for _, p := range lp {
+		p.Price *= resp.Rate
+	}
+
+	err = lp.ToJSON(rw)
 	if err != nil {
 		http.Error(rw, "Unable to marshal json", http.StatusInternalServerError)
 	}
@@ -83,4 +102,3 @@ func (p Products) MiddlewareValidateProduct(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 	})
 }
-
