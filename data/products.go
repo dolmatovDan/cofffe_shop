@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"time"
+
+	"github.com/go-playground/validator"
 )
 
 type Product struct {
@@ -44,7 +47,7 @@ func getNextID() int {
 	return lp.ID + 1
 }
 
-func UpdateProduct(id int, p* Product) error {
+func UpdateProduct(id int, p *Product) error {
 	_, pos, err := findProduct(id)
 	if err != nil {
 		return err
@@ -54,9 +57,28 @@ func UpdateProduct(id int, p* Product) error {
 	return nil
 }
 
+func (p *Product) Validate() error {
+	validate := validator.New()
+	validate.RegisterValidation("sku", validateSKU)
+
+	return validate.Struct(p)
+}
+
+func validateSKU(fl validator.FieldLevel) bool {
+	// sku is of format abc-absd-dfsdf
+	re := regexp.MustCompile(`[a-z]+-[a-z]+-[a-z]+`)
+	matches := re.FindAllString(fl.Field().String(), -1)
+
+	if len(matches) != 1 {
+		return false
+	}
+
+	return true
+}
+
 var ErrProductNotFound = fmt.Errorf("Product not found")
 
-func findProduct(id int) (*Product, int ,error) {
+func findProduct(id int) (*Product, int, error) {
 	for i, p := range productList {
 		if p.ID == id {
 			return p, i, nil

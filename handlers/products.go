@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 
 // http.Handler
 type Products struct {
-	l *log.Logger
+	l  *log.Logger
 	cc protos.CurrencyClient
 }
 
@@ -30,7 +31,7 @@ func (p *Products) GetProducts(rw http.ResponseWriter, r *http.Request) {
 
 	// get exchange from gRPC client
 	rr := &protos.RateRequest{
-		Base: protos.Currencies(protos.Currencies_value["EUR"]),
+		Base:        protos.Currencies(protos.Currencies_value["EUR"]),
 		Destination: protos.Currencies(protos.Currencies_value["GBP"]),
 	}
 	resp, err := p.cc.GetRate(context.Background(), rr)
@@ -40,7 +41,7 @@ func (p *Products) GetProducts(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.l.Printf("Resp %#v", resp)
-	
+
 	for _, p := range lp {
 		p.Price *= resp.Rate
 	}
@@ -91,6 +92,13 @@ func (p Products) MiddlewareValidateProduct(next http.Handler) http.Handler {
 		if err != nil {
 			p.l.Println("[ERROR] deserializing product", err)
 			http.Error(rw, "Error reading product", http.StatusBadRequest)
+			return
+		}
+
+		err = prod.Validate()
+		if err != nil {
+			p.l.Println("[ERROR] validating product", err)
+			http.Error(rw, fmt.Sprintf("Error validating product: %s", err), http.StatusBadRequest)
 			return
 		}
 
