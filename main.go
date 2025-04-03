@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/dolmatovDan/cofffe_shop/data"
 	"github.com/dolmatovDan/cofffe_shop/handlers"
 	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/gorilla/mux"
@@ -16,6 +17,7 @@ import (
 
 func main() {
 	l := log.New(os.Stdout, "products-api ", log.LstdFlags)
+	v := data.NewValidation()
 
 	conn, err := grpc.Dial(":9092", grpc.WithInsecure())
 	if err != nil {
@@ -24,19 +26,20 @@ func main() {
 	// gRPC client
 	cc := protos.NewCurrencyClient(conn)
 
-	ph := handlers.NewProducts(l, cc)
+	ph := handlers.NewProducts(l, v, cc)
 
 	sm := mux.NewRouter()
 
 	getRouter := sm.Methods(http.MethodGet).Subrouter()
-	getRouter.HandleFunc("/", ph.GetProducts)
+	getRouter.HandleFunc("/", ph.ListAll)
+	getRouter.HandleFunc("/{id:[0-9]+}", ph.ListSingle)
 
 	putRouter := sm.Methods(http.MethodPut).Subrouter()
-	putRouter.HandleFunc("/{id:[0-9]+}", ph.UpdateProducts)
+	putRouter.HandleFunc("/{id:[0-9]+}", ph.Update)
 	putRouter.Use(ph.MiddlewareValidateProduct)
 
 	postRouter := sm.Methods(http.MethodPost).Subrouter()
-	postRouter.HandleFunc("/", ph.AddProduct)
+	postRouter.HandleFunc("/", ph.Create)
 	postRouter.Use(ph.MiddlewareValidateProduct)
 
 	s := http.Server{
