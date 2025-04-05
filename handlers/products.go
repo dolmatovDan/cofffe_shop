@@ -1,25 +1,24 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/dolmatovDan/cofffe_shop/data"
-	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-hclog"
 )
 
 // http.Handler
 type Products struct {
-	l  *log.Logger
-	v  *data.Validation
-	cc protos.CurrencyClient
+	l         hclog.Logger
+	v         *data.Validation
+	productDB *data.ProductsDB
 }
 
 // NewProducts creates a products handler with the given logger
-func NewProducts(l *log.Logger, v *data.Validation, cc protos.CurrencyClient) *Products {
-	return &Products{l, v, cc}
+func NewProducts(l hclog.Logger, v *data.Validation, pdb *data.ProductsDB) *Products {
+	return &Products{l, v, pdb}
 }
 
 // GenericError is a generic error message returned by a server

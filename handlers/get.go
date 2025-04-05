@@ -1,59 +1,49 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/dolmatovDan/cofffe_shop/data"
-	protos "github.com/dolmatovDan/gRPC/currency"
 )
 
 func (p *Products) ListAll(rw http.ResponseWriter, r *http.Request) {
-	p.l.Println("Handle GET Products")
+	p.l.Debug("Get all records")
 
-	lp := data.GetProducts()
+	cur := r.URL.Query().Get("currency")
+	lp, err := p.productDB.GetProducts(cur)
 
-	// get exchange from gRPC client
-	rr := &protos.RateRequest{
-		Base:        protos.Currencies(protos.Currencies_value["EUR"]),
-		Destination: protos.Currencies(protos.Currencies_value["GBP"]),
-	}
-	resp, err := p.cc.GetRate(context.Background(), rr)
 	if err != nil {
-		p.l.Println("[Error] error getting new rate", err)
-		http.Error(rw, "Error getting currency rate", http.StatusBadRequest)
+		rw.WriteHeader(http.StatusInternalServerError)
+		data.ToJSON(&GenericError{Message: err.Error()}, rw)
 		return
-	}
-	p.l.Printf("Resp %#v", resp)
-
-	for _, p := range lp {
-		p.Price *= resp.Rate
 	}
 
 	err = data.ToJSON(lp, rw)
 	if err != nil {
-		http.Error(rw, "Unable to marshal json", http.StatusInternalServerError)
+		p.l.Error("Unable to serialize product", "error", err)
+		return
 	}
 }
 
 func (p *Products) ListSingle(rw http.ResponseWriter, r *http.Request) {
 	id := getProductID(r)
+	cur := r.URL.Query().Get("currency")
 
-	p.l.Println("[DEBUG] get record id", id)
+	p.l.Debug("Get record", "id", id)
 
-	prod, err := data.GetProductByID(id)
+	prod, err := p.productDB.GetProductByID(id, cur)
 
 	switch err {
 	case nil:
 
 	case data.ErrProductNotFound:
-		p.l.Println("[ERROR] fetching product", err)
+		p.l.Error("Fetching product", "error", err)
 
 		rw.WriteHeader(http.StatusNotFound)
 		data.ToJSON(&GenericError{Message: err.Error()}, rw)
 		return
 	default:
-		p.l.Println("[ERROR] fetching product", err)
+		p.l.Error("Fetching product", "error", err)
 
 		rw.WriteHeader(http.StatusInternalServerError)
 		data.ToJSON(&GenericError{Message: err.Error()}, rw)
@@ -63,6 +53,6 @@ func (p *Products) ListSingle(rw http.ResponseWriter, r *http.Request) {
 	err = data.ToJSON(prod, rw)
 	if err != nil {
 		// we should never be here but log the error just incase
-		p.l.Println("[ERROR] serializing product", err)
+		p.l.Error("Serializing product", "error", err)
 	}
 }
