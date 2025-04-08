@@ -3,7 +3,7 @@ module github.com/dolmatovDan/cofffe_shop
 go 1.23.3
 
 require (
-	github.com/dolmatovDan/gRPC v0.0.0-20250405125248-42ab66773544
+	github.com/dolmatovDan/gRPC v0.0.0-20250408190036-a05bf4f6e372
 	github.com/gorilla/mux v1.8.1
 )
 

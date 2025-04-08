@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dolmatovDan/gRPC/currency"
 	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/go-playground/validator"
 	"github.com/hashicorp/go-hclog"
@@ -26,10 +27,38 @@ type Products []*Product
 type ProductsDB struct {
 	currency protos.CurrencyClient
 	log      hclog.Logger
+	rates    map[string]float64
+	client   currency.Currency_SubscribeRatesClient
 }
 
 func NewProductsDB(c protos.CurrencyClient, l hclog.Logger) *ProductsDB {
-	return &ProductsDB{c, l}
+	pb := &ProductsDB{c, l, make(map[string]float64), nil}
+
+	go pb.handleUpdates()
+
+	return pb
+}
+
+func (p *ProductsDB) handleUpdates() {
+	sub, err := p.currency.SubscribeRates(context.Background())
+	if err != nil {
+		p.log.Error("Unable to subscibe for rates", "error", err)
+		return
+	}
+
+	p.client = sub
+
+	for {
+		rr, err := sub.Recv()
+		p.log.Info("Received updated rate from server", "dest", rr.GetDestination().String())
+
+		if err != nil {
+			p.log.Error("Error receiveing message", "error", err)
+			return
+		}
+
+		p.rates[rr.Destination.String()] = rr.Rate
+	}
 }
 
 func (p *ProductsDB) GetProducts(currency string) (Products, error) {
@@ -137,11 +166,22 @@ func findIndexByProductID(id int) int {
 }
 
 func (p *ProductsDB) getRate(dest string) (float64, error) {
+	if r, ok := p.rates[dest]; ok {
+		return r, nil
+	}
+
 	rr := &protos.RateRequest{
 		Base:        protos.Currencies(protos.Currencies_value["RUB"]),
 		Destination: protos.Currencies(protos.Currencies_value[dest]),
 	}
+
+	// initial rate
 	resp, err := p.currency.GetRate(context.Background(), rr)
+	p.rates[dest] = resp.Rate // update cache
+
+	// subscribe
+	p.client.Send(rr)
+
 	return resp.Rate, err
 }
 
