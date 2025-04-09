@@ -9,6 +9,8 @@ import (
 	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/go-playground/validator"
 	"github.com/hashicorp/go-hclog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Product struct {
@@ -177,6 +179,16 @@ func (p *ProductsDB) getRate(dest string) (float64, error) {
 
 	// initial rate
 	resp, err := p.currency.GetRate(context.Background(), rr)
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			md := s.Details()[0].(*protos.RateRequest)
+			if s.Code() == codes.InvalidArgument {
+				return -1, fmt.Errorf("Unable to get rate from currency server, destination and base currency can not be the same, base: %s, dest: %s", md.Base.String(), md.Destination.String())
+			}
+			return -1, fmt.Errorf("Unable to get rate from currency server, base: %s, dest: %s", md.Base.String(), md.Destination.String())
+		}
+	}
+
 	p.rates[dest] = resp.Rate // update cache
 
 	// subscribe
