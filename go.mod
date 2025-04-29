@@ -3,7 +3,7 @@ module github.com/dolmatovDan/cofffe_shop
 go 1.23.3
 
 require (
-	github.com/dolmatovDan/gRPC v0.0.0-20250408190036-a05bf4f6e372
+	github.com/dolmatovDan/gRPC v0.0.0-20250409084430-0cabbc8e3523
 	github.com/gorilla/mux v1.8.1
 )
 
@@ -22,10 +22,10 @@ require (
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.3
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250407143221-ac9807e6c755 // indirect
 	google.golang.org/grpc v1.71.1
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 )

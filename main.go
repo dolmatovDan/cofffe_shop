@@ -80,6 +80,6 @@ func main() {
 	log.Println("Got signal:", sig)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	s.Shutdown(ctx)
-	cancel()
 }

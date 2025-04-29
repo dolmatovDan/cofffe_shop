@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dolmatovDan/gRPC/currency"
 	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/go-playground/validator"
 	"github.com/hashicorp/go-hclog"
@@ -30,7 +29,7 @@ type ProductsDB struct {
 	currency protos.CurrencyClient
 	log      hclog.Logger
 	rates    map[string]float64
-	client   currency.Currency_SubscribeRatesClient
+	client   protos.Currency_SubscribeRatesClient
 }
 
 func NewProductsDB(c protos.CurrencyClient, l hclog.Logger) *ProductsDB {
@@ -52,14 +51,22 @@ func (p *ProductsDB) handleUpdates() {
 
 	for {
 		rr, err := sub.Recv()
-		p.log.Info("Received updated rate from server", "dest", rr.GetDestination().String())
-
-		if err != nil {
-			p.log.Error("Error receiveing message", "error", err)
-			return
+		if grpcError := rr.GetError(); grpcError != nil {
+			p.log.Error("Error subscribing for rates", "error", grpcError)
+			continue
 		}
 
-		p.rates[rr.Destination.String()] = rr.Rate
+		if resp := rr.GetRateResponse(); resp != nil {
+			p.log.Info("Received updated rate from server", "dest", resp.GetDestination().String())
+
+			if err != nil {
+				p.log.Error("Error receiveing message", "error", err)
+				return
+			}
+
+			p.rates[resp.GetDestination().String()] = resp.Rate
+		}
+
 	}
 }
 
