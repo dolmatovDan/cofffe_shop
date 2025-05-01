@@ -52,7 +52,7 @@ func main() {
 	deleteRouter := sm.Methods(http.MethodDelete).Subrouter()
 	deleteRouter.HandleFunc("/products/{id:[0-9]+}", ph.Delete)
 
-	ch := gohandlers.CORS(gohandlers.AllowedOrigins([]string{"&"}))
+	ch := gohandlers.CORS(gohandlers.AllowedOrigins([]string{"*"}))
 
 	s := http.Server{
 		Addr:         ":9090",

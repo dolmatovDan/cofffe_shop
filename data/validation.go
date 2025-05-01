@@ -45,7 +45,11 @@ func NewValidation() *Validation {
 }
 
 func (v *Validation) Validate(i any) ValidationErrors {
-	errs := v.validate.Struct(i).(validator.ValidationErrors)
+	err := v.validate.Struct(i)
+	if err == nil {
+		return nil
+	}
+	errs := err.(validator.ValidationErrors)
 
 	if len(errs) == 0 {
 		return nil

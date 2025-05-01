@@ -3,13 +3,15 @@ package data
 import (
 	"context"
 	"fmt"
-	"time"
 
 	protos "github.com/dolmatovDan/gRPC/currency"
 	"github.com/go-playground/validator"
 	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type Product struct {
@@ -30,14 +32,28 @@ type ProductsDB struct {
 	log      hclog.Logger
 	rates    map[string]float64
 	client   protos.Currency_SubscribeRatesClient
+	db       *gorm.DB
 }
 
 func NewProductsDB(c protos.CurrencyClient, l hclog.Logger) *ProductsDB {
-	pb := &ProductsDB{c, l, make(map[string]float64), nil}
+	pb := &ProductsDB{c, l, make(map[string]float64), nil, nil}
 
 	go pb.handleUpdates()
 
+	pb.initDB()
 	return pb
+}
+
+func (p *ProductsDB) initDB() {
+	dsn := "host=localhost user=postgres password=yourpassword dbname=postgres port=5433 sslmode=disable"
+	var err error
+	p.db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		p.log.Error("Unable to connect to data base", "err", err)
+		return
+	}
+
+	p.db.AutoMigrate(&Product{})
 }
 
 func (p *ProductsDB) handleUpdates() {
@@ -71,6 +87,14 @@ func (p *ProductsDB) handleUpdates() {
 }
 
 func (p *ProductsDB) GetProducts(currency string) (Products, error) {
+	var dbProducts []Product
+	if err := p.db.Find(&dbProducts).Error; err != nil {
+		return nil, err
+	}
+	var productList Products
+	for _, p := range dbProducts {
+		productList = append(productList, &p)
+	}
 	if currency == "" {
 		return productList, nil
 	}
@@ -92,23 +116,30 @@ func (p *ProductsDB) GetProducts(currency string) (Products, error) {
 }
 
 func (pdb *ProductsDB) AddProduct(p Product) {
-	p.ID = getNextID()
-	productList = append(productList, &p)
-}
-
-func getNextID() int {
-	lp := productList[len(productList)-1]
-	return lp.ID + 1
+	if err := pdb.db.Create(&p).Error; err != nil {
+		pdb.log.Error("Can't create products", "err", err)
+		return
+	}
 }
 
 func (pdb *ProductsDB) UpdateProduct(p Product) error {
-	i := findIndexByProductID(p.ID)
+	productList, err := pdb.GetProducts("")
+	if err != nil {
+		pdb.log.Info("Can't connect to data base")
+		return err
+	}
+	i := pdb.findIndexByProductID(p.ID)
 	if i == -1 {
 		return ErrProductNotFound
 	}
 
 	// update the product in the DB
 	productList[i] = &p
+
+	if err := pdb.db.Model(&Product{}).Where("id = ?", p.ID).Updates(&p).Error; err != nil {
+		pdb.log.Error("Can't update product", "err", err)
+		return err
+	}
 
 	return nil
 }
@@ -122,28 +153,21 @@ func (p *Product) Validate() error {
 
 var ErrProductNotFound = fmt.Errorf("Product not found")
 
-func findProduct(id int) (*Product, int, error) {
-	for i, p := range productList {
-		if p.ID == id {
-			return p, i, nil
-		}
-	}
-	return nil, -1, ErrProductNotFound
-}
-
 func (pdb *ProductsDB) DeleteProduct(id int) error {
-	i := findIndexByProductID(id)
-	if i == -1 {
+	if err := pdb.db.Delete(&Product{}, id).Error; err != nil {
 		return ErrProductNotFound
 	}
-
-	productList = append(productList[:i], productList[i+1])
 
 	return nil
 }
 
 func (p *ProductsDB) GetProductByID(id int, currency string) (*Product, error) {
-	i := findIndexByProductID(id)
+	productList, err := p.GetProducts("")
+	if err != nil {
+		p.log.Info("Can't connect to data base")
+		return nil, err
+	}
+	i := p.findIndexByProductID(id)
 	if id == -1 {
 		return nil, ErrProductNotFound
 	}
@@ -164,7 +188,12 @@ func (p *ProductsDB) GetProductByID(id int, currency string) (*Product, error) {
 	return &np, nil
 }
 
-func findIndexByProductID(id int) int {
+func (pdb *ProductsDB) findIndexByProductID(id int) int {
+	productList, err := pdb.GetProducts("")
+	if err != nil {
+		pdb.log.Info("Can't connect to data base")
+		return 0
+	}
 	for i, p := range productList {
 		if p.ID == id {
 			return i
@@ -202,26 +231,4 @@ func (p *ProductsDB) getRate(dest string) (float64, error) {
 	p.client.Send(rr)
 
 	return resp.Rate, err
-}
-
-// data
-var productList = []*Product{
-	{
-		ID:          1,
-		Name:        "Latte",
-		Description: "Frothy milky coffee",
-		Price:       100,
-		SKU:         "",
-		CreatedOn:   time.Now().UTC().String(),
-		UpdatedOn:   time.Now().UTC().String(),
-	},
-	{
-		ID:          2,
-		Name:        "Espresso",
-		Description: "Short and strong coffee without milk",
-		Price:       250,
-		SKU:         "",
-		CreatedOn:   time.Now().UTC().String(),
-		UpdatedOn:   time.Now().UTC().String(),
-	},
 }
